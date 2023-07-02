@@ -20,6 +20,7 @@ from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrain
 from .transform import image_transform, AugmentationCfg
 from .tokenizer import HFTokenizer, tokenize
 
+import .loss as avail_losses
 
 HF_HUB_PREFIX = 'hf-hub:'
 _MODEL_CONFIG_PATHS = [Path(__file__).parent / f"model_configs/"]
@@ -257,6 +258,16 @@ def create_model(
 
 
 def create_loss(args):
+    if args.distill_loss_type is not None:
+        return getattr(avail_losses, args.distill_loss_type)(
+            local_loss=args.local_loss,
+            gather_with_grad=args.gather_with_grad,
+            cache_labels=True,
+            rank=args.rank,
+            world_size=args.world_size,
+            use_horovod=args.horovod,
+        )
+
     if args.distill:
         return DistillClipLoss(
             local_loss=args.local_loss,
