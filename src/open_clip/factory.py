@@ -20,7 +20,7 @@ from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrain
 from .transform import image_transform, AugmentationCfg
 from .tokenizer import HFTokenizer, tokenize
 
-import .loss as avail_losses
+import open_clip.loss as avail_losses
 
 HF_HUB_PREFIX = 'hf-hub:'
 _MODEL_CONFIG_PATHS = [Path(__file__).parent / f"model_configs/"]
