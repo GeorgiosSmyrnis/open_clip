@@ -17,6 +17,7 @@ except ImportError:
 
 import numpy as np
 
+import logging
 
 def gather_features(
         image_features,
@@ -75,6 +76,8 @@ class ClipLoss(nn.Module):
             rank=0,
             world_size=1,
             use_horovod=False,
+            student_cfg=None,           #FIXME: this is only to ensure compatibility
+            teacher_cft=None
     ):
         super().__init__()
         self.local_loss = local_loss
@@ -228,7 +231,9 @@ class MultimodalDistillClipLoss(ClipLoss):
             rank=0,
             world_size=1,
             use_horovod=False,
-            epochs_ramp=None,
+            student_cfg=None,
+            teacher_cfg=None,
+            epochs_ramp=None
     ):
         super().__init__(
             local_loss=local_loss,
@@ -238,6 +243,17 @@ class MultimodalDistillClipLoss(ClipLoss):
             world_size=world_size,
             use_horovod=use_horovod
         )
+        if student_cfg is None or teacher_cfg is None:
+            warning_str = (
+                f"Configs for student {student_cfg} or teacher {teacher_cfg} not found.",
+                f"Assuming both models have same output dimension."
+            )
+            logging.warning(warning_str)
+            self.projector = None
+        else:
+            student_dim = student_cfg["embed_dim"]
+            teacher_dim = teacher_cfg["embed_dim"]
+            self.projector = nn.Linear(teacher_dim, student_dim, bias=False)
         self.epochs_ramp = epochs_ramp
         self.ramp_factor = None
 
@@ -248,6 +264,7 @@ class MultimodalDistillClipLoss(ClipLoss):
             self.ramp_factor = np.clip(float(epoch) / float(self.epochs_ramp), 0.0, 1.0)
 
     def contrastive_dist_loss(self, teacher_feats, student_feats, dist_logit_scale):
+        teacher_feats = self.projector(teacher_feats) if self.projector is not None else teacher_feats
         logits, _ = self.get_logits(student_feats, teacher_feats, dist_logit_scale)
         labels = self.get_ground_truth(logits.device, logits.shape[0])
         return F.cross_entropy(logits, labels)
@@ -262,6 +279,13 @@ class MultimodalDistillClipLoss(ClipLoss):
             dist_logit_scale,
             output_dict=False,
     ):
+        # Bookkeeping for the projector.
+        if self.projector is not None:
+            if image_features.requires_grad:
+                self.projector.train()
+            else:
+                self.projector.eval()
+
         logits_per_image, logits_per_text = \
             self.get_logits(image_features, text_features, logit_scale)
 
