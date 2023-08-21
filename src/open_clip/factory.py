@@ -266,6 +266,8 @@ def create_loss(args):
             rank=args.rank,
             world_size=args.world_size,
             use_horovod=args.horovod,
+            student_cfg=get_model_config(args.model),
+            teacher_cfg=get_model_config(args.distill_model),
         )
 
     if args.distill:
