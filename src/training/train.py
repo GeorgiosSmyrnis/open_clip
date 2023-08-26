@@ -59,7 +59,7 @@ def backward(total_loss, scaler):
         total_loss.backward()
 
 
-def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=None):
+def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, dist_projection, args, tb_writer=None):
     device = torch.device(args.device)
     autocast = get_autocast(args.precision)
     input_dtype = get_input_dtype(args.precision)
@@ -68,6 +68,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
     model.train()
     if args.distill:
         dist_model.eval()
+        dist_projection.train()
 
     data['train'].set_epoch(epoch)  # set epoch in process safe manner via sampler or shared_epoch
     dataloader = data['train'].dataloader
@@ -102,6 +103,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 if args.distill:
                     with torch.no_grad():
                         dist_model_out = dist_model(images, texts)
+                        dist_model_out = dist_projection(dist_model_out)
                     model_out.update({f'dist_{k}' : v for k, v in dist_model_out.items()})
                 losses = loss(**model_out, output_dict=True)
 

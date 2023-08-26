@@ -11,7 +11,7 @@ import torch
 
 from .constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
-    resize_pos_embed, get_cast_dtype
+    resize_pos_embed, get_cast_dtype, CLIPProjection
 from .coca_model import CoCa
 from .loss import ClipLoss, DistillClipLoss, CoCaLoss
 from .openai import load_openai_model
@@ -266,8 +266,6 @@ def create_loss(args):
             rank=args.rank,
             world_size=args.world_size,
             use_horovod=args.horovod,
-            student_cfg=get_model_config(args.model),
-            teacher_cfg=get_model_config(args.distill_model),
         )
 
     if args.distill:
@@ -290,6 +288,17 @@ def create_loss(args):
             world_size=args.world_size,
             use_horovod=args.horovod,
         )
+    elif args.siglip:
+        # return SiglipLoss(
+        #     local_loss=args.local_loss,
+        #     gather_with_grad=args.gather_with_grad,
+        #     cache_labels=True,
+        #     rank=args.rank,
+        #     world_size=args.world_size,
+        #     use_horovod=args.horovod,
+        # )
+        raise NotImplementedError()
+
     return ClipLoss(
         local_loss=args.local_loss,
         gather_with_grad=args.gather_with_grad,
@@ -393,3 +402,18 @@ def create_model_from_pretrained(
     )
 
     return model, preprocess
+
+
+def create_distillation_projection(student_model, teacher_model, device = "cpu", output_dict=False):
+
+    student_config = get_model_config(student_model)
+    teacher_config = get_model_config(teacher_model)
+
+    if student_config is not None and teacher_config is not None:
+        student_dim = student_config["embed_dim"]
+        teacher_dim = teacher_config["embed_dim"]
+        projector = CLIPProjection(teacher_dim, student_dim, output_dict=output_dict)
+        projector.to(device)
+        return projector
+    else:
+        raise ValueError("Add detailed error here.")

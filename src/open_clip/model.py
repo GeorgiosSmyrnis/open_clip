@@ -311,6 +311,45 @@ class CustomTextCLIP(nn.Module):
         return image_features, text_features, self.logit_scale.exp()
 
 
+class CLIPProjection(nn.Module):
+
+    def __init__(self, base_dim, target_dim, output_dict = False):
+        super().__init__()
+        if target_dim != base_dim:
+            self.projector_img = nn.Linear(base_dim, target_dim, bias=False)
+            self.projector_text = nn.Linear(base_dim, target_dim, bias=False)
+        else:
+            self.projector_img = None
+            self.projector_text = None
+        self.output_dict = output_dict
+
+    def forward(self, base_inputs):
+
+        if self.projector_img is None:
+            return base_inputs
+
+        if isinstance(base_inputs, dict):
+            image_input = base_inputs["image_features"]
+            text_input = base_inputs["text_features"]
+            logit_scale = base_inputs["logit_scale"]
+        else:
+            image_input, text_input, logit_scale = base_inputs
+
+        image_output = self.projector_img(image_input) if self.projector_img is not None else image_input
+        text_output = self.projector_text(text_input) if self.projector_text is not None else text_input
+
+        if self.output_dict:
+            output = {
+                "image_features": image_output,
+                "text_features": text_output,
+                "logit_scale": logit_scale
+            }
+        else:
+            output = (image_output, text_output, logit_scale)
+
+        return output
+
+
 def convert_weights_to_lp(model: nn.Module, dtype=torch.float16):
     """Convert applicable model parameters to low-precision (bf16 or fp16)"""
 

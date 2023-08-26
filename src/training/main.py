@@ -27,7 +27,7 @@ try:
 except ImportError:
     hvd = None
 
-from open_clip import create_model_and_transforms, trace_model, get_tokenizer, create_loss
+from open_clip import create_model_and_transforms, trace_model, get_tokenizer, create_loss, create_distillation_projection
 from training.data import get_data
 from training.distributed import is_master, init_distributed_device, broadcast_object
 from training.logger import setup_logging
@@ -238,7 +238,13 @@ def main(args):
             args.distill_pretrained,
             device=device,
             precision=args.precision,
-            output_dict=True,
+            output_dict=True
+        )
+        dist_projection = create_distillation_projection(
+            args.model,
+            args.distill_model,
+            device=device,
+            output_dict=True
         )
     if args.use_bnb_linear is not None:
         print('=> using a layer from bitsandbytes.\n'
@@ -292,6 +298,7 @@ def main(args):
     
         if args.distill:
             dist_model = torch.nn.parallel.DistributedDataParallel(dist_model, device_ids=[device], **ddp_args)
+            dist_projection = torch.nn.parallel.DistributedDataParallel(dist_projection, device_ids=[device], **ddp_args)
 
     # create optimizer and scaler
     optimizer = None
@@ -303,7 +310,7 @@ def main(args):
         exclude = lambda n, p: p.ndim < 2 or "bn" in n or "ln" in n or "bias" in n or 'logit_scale' in n
         include = lambda n, p: not exclude(n, p)
 
-        named_parameters = list(model.named_parameters())
+        named_parameters = list(model.named_parameters()) + list(dist_projection.named_parameters())
         gain_or_bias_params = [p for n, p in named_parameters if exclude(n, p) and p.requires_grad]
         rest_params = [p for n, p in named_parameters if include(n, p) and p.requires_grad]
 
@@ -415,7 +422,7 @@ def main(args):
         if is_master(args):
             logging.info(f'Start epoch {epoch}')
 
-        train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer)
+        train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, dist_projection, args, tb_writer=writer)
         completed_epoch = epoch + 1
 
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
