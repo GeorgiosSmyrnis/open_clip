@@ -246,6 +246,8 @@ def main(args):
             device=device,
             output_dict=True
         )
+    else:
+        dist_projection = None
     if args.use_bnb_linear is not None:
         print('=> using a layer from bitsandbytes.\n'
               '   this is an experimental feature which requires two extra pip installs\n'
@@ -310,7 +312,10 @@ def main(args):
         exclude = lambda n, p: p.ndim < 2 or "bn" in n or "ln" in n or "bias" in n or 'logit_scale' in n
         include = lambda n, p: not exclude(n, p)
 
-        named_parameters = list(model.named_parameters()) + list(dist_projection.named_parameters())
+        if dist_projection is not None:
+            named_parameters = list(model.named_parameters()) + list(dist_projection.named_parameters())
+        else:
+            named_parameters = list(model.named_parameters())
         gain_or_bias_params = [p for n, p in named_parameters if exclude(n, p) and p.requires_grad]
         rest_params = [p for n, p in named_parameters if include(n, p) and p.requires_grad]
 
