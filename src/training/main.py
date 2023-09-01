@@ -240,12 +240,15 @@ def main(args):
             precision=args.precision,
             output_dict=True
         )
-        dist_projection = create_distillation_projection(
-            args.model,
-            args.distill_model,
-            device=device,
-            output_dict=True
-        )
+        if args.distill_loss_type == "DistillClipLoss":
+            dist_projection = torch.nn.Identity()
+        else:
+            dist_projection = create_distillation_projection(
+                args.model,
+                args.distill_model,
+                device=device,
+                output_dict=True
+            )
     else:
         dist_projection = None
     if args.use_bnb_linear is not None:
