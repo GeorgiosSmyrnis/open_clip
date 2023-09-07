@@ -303,7 +303,8 @@ def main(args):
     
         if args.distill:
             dist_model = torch.nn.parallel.DistributedDataParallel(dist_model, device_ids=[device], **ddp_args)
-            dist_projection = torch.nn.parallel.DistributedDataParallel(dist_projection, device_ids=[device], **ddp_args)
+            if len(list(dist_projection.parameters())) > 0:
+                dist_projection = torch.nn.parallel.DistributedDataParallel(dist_projection, device_ids=[device], **ddp_args)
 
     # create optimizer and scaler
     optimizer = None
