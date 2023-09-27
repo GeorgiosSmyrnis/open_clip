@@ -289,6 +289,63 @@ class MultimodalDistillClipLoss(ClipLoss):
             return {"contrastive_loss": contrastive_loss, "distill_loss": distill_loss}
 
         return contrastive_loss, distill_loss
+
+
+class UnimodalDistillClipLoss(ClipLoss):
+
+    def __init__(
+            self,
+            local_loss=False,
+            gather_with_grad=False,
+            cache_labels=False,
+            rank=0,
+            world_size=1,
+            use_horovod=False,
+    ):
+        super().__init__(
+            local_loss=local_loss,
+            gather_with_grad=gather_with_grad,
+            cache_labels=cache_labels,
+            rank=rank,
+            world_size=world_size,
+            use_horovod=use_horovod
+        )
+
+    def contrastive_dist_loss(self, teacher_feats, student_feats, dist_logit_scale):
+        logits, _ = self.get_logits(student_feats, teacher_feats, dist_logit_scale)
+        labels = self.get_ground_truth(logits.device, logits.shape[0])
+        return F.cross_entropy(logits, labels)
+
+    def forward(
+            self,
+            image_features,
+            text_features,
+            logit_scale,
+            dist_image_features,
+            dist_text_features,
+            dist_logit_scale,
+            output_dict=False,
+    ):
+
+        logits_per_image, logits_per_text = \
+            self.get_logits(image_features, text_features, logit_scale)
+
+        labels = self.get_ground_truth(image_features.device, logits_per_image.shape[0])
+
+        contrastive_loss = (
+            F.cross_entropy(logits_per_image, labels) +
+            F.cross_entropy(logits_per_text, labels)
+        ) / 2
+
+        distill_loss = (
+            self.contrastive_dist_loss(dist_image_features, image_features, dist_logit_scale) +
+            self.contrastive_dist_loss(dist_text_features, text_features, dist_logit_scale)
+        ) / 2
+
+        if output_dict:
+            return {"contrastive_loss": contrastive_loss, "distill_loss": distill_loss}
+
+        return contrastive_loss, distill_loss
     
 
 class MultimodalDistillClipLossV2(ClipLoss):
