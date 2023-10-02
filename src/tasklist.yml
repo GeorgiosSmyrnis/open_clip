@@ -1,0 +1,19 @@
+# Retrieval datasets
+
+# Flickr30k
+retrieval/flickr_1k_test_image_text_retrieval:
+  name: Flickr
+  size: 1000
+  main_metric: mean_recall@1
+  time: 20
+  tags:
+    - retrieval
+
+# MSCOCO
+retrieval/mscoco_2014_5k_test_image_text_retrieval:
+  name: MSCOCO
+  size: 5000
+  main_metric: mean_recall@1
+  time: 23
+  tags:
+    - retrieval
